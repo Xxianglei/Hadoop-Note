@@ -260,3 +260,66 @@ http://hadoop.apache.org/docs/stable/hadoop-distcp/DistCp.html
 拷贝命令： 
 
  hadoop distcp -i hftp://sourceFS:50070/src hdfs://destFS:8020/dest
+ 
+## Yarn的HA
+
+
+![](http://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/images/rm-ha-overview.png) 
+
+
+配置 
+
+		<property>
+		  <name>yarn.resourcemanager.ha.enabled</name>
+		  <value>true</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.cluster-id</name>
+		  <value>cluster1</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.ha.rm-ids</name>
+		  <value>rm1,rm2</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.hostname.rm1</name>
+		  <value>master1</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.hostname.rm2</name>
+		  <value>master2</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.webapp.address.rm1</name>
+		  <value>master1:8088</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.webapp.address.rm2</name>
+		  <value>master2:8088</value>
+		</property>
+		<property>
+		  <name>yarn.resourcemanager.zk-address</name>
+		  <value>zk1:2181,zk2:2181,zk3:2181</value>
+		</property>
+
+命令
+http://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/ResourceManagerHA.html
+
+		 $ yarn rmadmin -getServiceState rm1
+		 active
+		
+		 $ yarn rmadmin -getServiceState rm2
+		 standby
+
+
+
+		 $ yarn rmadmin -transitionToStandby rm1
+		 Automatic failover is enabled for org.apache.hadoop.yarn.client.RMHAServiceTarget@1d8299fd
+		 Refusing to manually manage HA state, since it may cause
+		 a split-brain scenario or other incorrect state.
+		 If you are very sure you know what you are doing, please
+		 specify the forcemanual flag.
+
+## RM restart
+
+
