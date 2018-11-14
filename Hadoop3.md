@@ -229,3 +229,34 @@ Starting ntpd: [  OK  ]
 ![](https://i.imgur.com/PE3VzaF.png)
 start-dfs.sh 启动一切  包括zkFc
 ![](https://i.imgur.com/DDrWG02.png)
+
+zk挂掉不会影响集群，只是不能故障转移了，失去了对集群的选举
+
+## HA太简单了
+
+## Federation
+
+![](https://i.imgur.com/mkONCnL.png)
+
+NameNode
+	
+	能不能有多个NameNode
+	NameNode 			NameNode 				NameNode
+	元数据				元数据					元数据
+	log				machine					电商数据/话单数据
+
+三个把数据存在所有的DataNodes节点上
+
+## 集中式缓存管理 
+
+HDFS允许用户将一部分文件或目录缓存在HDFS中，Namenode会通知拥有对应快的DataNodes将其缓存在datanode的内存中
+
+## 分布式拷贝
+
+数据迁移，如将测试集群的数据拷贝到生产集群 
+
+http://hadoop.apache.org/docs/stable/hadoop-distcp/DistCp.html
+
+拷贝命令： 
+
+ hadoop distcp -i hftp://sourceFS:50070/src hdfs://destFS:8020/dest
