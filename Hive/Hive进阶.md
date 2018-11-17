@@ -196,6 +196,8 @@
 
 ## 数据迁移
 
+**加载数据** 
+
 ![](https://i.imgur.com/nufQor3.png)
 
 * 原始文件存储的位置
@@ -208,3 +210,55 @@
 
 	partition (partcol1=val1,...)
 
+1）加载本地文件到hive表
+
+load data local inpath '/opt/datas/emp.txt' into table default.emp ;
+2）加载hdfs文件到hive中
+
+load data inpath '/user/beifeng/hive/datas/emp.txt' into table default.emp ;
+
+3）加载数据覆盖表中已有的数据
+
+load data inpath '/user/beifeng/hive/datas/emp.txt' overwrite into table default.emp ;
+4）创建表时通过insert加载
+
+create table default.emp_ci like emp ;
+insert into table default.emp_ci select * from default.emp ;
+
+5）创建表的时候通过location指定加载 
+
+	create EXTERNAL table IF NOT EXISTS default.emp_ext2(
+	empno int,
+	ename string,
+	job string,
+	mgr int,
+	hiredate string,
+	sal double,
+	comm double,
+	deptno int
+	)
+	ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+	location '/user/beifeng/hive/warehouse/emp_ext2';
+
+**导出数据**
+
+
+	insert overwrite local directory '/opt/datas/hive_exp_emp'
+	select * from default.emp ;
+
+	insert overwrite local directory '/opt/datas/hive_exp_emp2'
+	ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' COLLECTION ITEMS TERMINATED BY '\n'
+
+	select * from default.emp ;
+	
+	bin/hive -e "select * from default.emp ;" > /opt/datas/exp_res.txt
+	
+	-----------------------------------------------------------
+	insert overwrite directory '/user/beifeng/hive/hive_exp_emp'
+
+	select * from default.emp ;
+	
+	============================================================
+	sqoop
+		hdfs/hive -> rdbms
+		rdbms -> hdfs/hive/hbase
