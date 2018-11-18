@@ -251,3 +251,89 @@
 	* JVM 重用 
 	* 推测执行
 
+* 并行执行
+
+
+	某些任务之间不存在依赖关系时可以并行执行
+
+ ![](https://i.imgur.com/oboPLSw.png)
+
+* JVM重用
+
+	Map Task/Reduce Task
+	JVM 运行
+	启动一个容器，运行多个job
+![](https://i.imgur.com/RrBgskE.png)
+
+* Reduce数目
+![](https://i.imgur.com/U8FonKB.png)
+
+* 推测执行（默认启用）最好设置成false
+![](https://i.imgur.com/Qb1Vlvn.png)
+
+* Map数目
+![](https://i.imgur.com/nWkpNwc.png)
+
+* 动态分区调整
+![](https://i.imgur.com/O3JvRdy.png)
+
+* Strict Mode
+![](https://i.imgur.com/CnB4Pqy.png)
+
+**数据倾斜**
+	
+![](https://i.imgur.com/cKZ0YKK.png)
+	 Common/Shuffle/Reduce Join
+	 	连接发生的阶段，发生在 Reduce Task
+	 	大表对大表
+	 	每个表的数据都是从文件中读取的
+	
+	 Map Join
+	 	连接发生的阶段，发生在 Map Task
+	 	小表对大表
+	 	* 大表的数据放从文件中读取 cid
+	 	* 小表的数据内存中 id
+	 	DistributedCache
+![](https://i.imgur.com/KR9DgDJ.png)
+
+	 SMB Join
+	 	Sort-Merge-BUCKET Join
+
+![](https://i.imgur.com/DsvzIzE.png)
+
+ 先排序桶对应数量一致分开Join快
+
+**map join **
+
+![](https://i.imgur.com/eN98xeQ.png)
+
+**SMB Map join**
+
+![](https://i.imgur.com/Mawdkxb.png)
+
+**Explain Execution Plan**
+
+查看执行计划，看有几个mapreduce任务
+
+explain select deptno, avg(sal)avg_sal from emp group by deptno ;
+
+**针对Log日志的解析**
+
+正则表达式（见官网）
+
+![](https://i.imgur.com/GmfSkge.png)
+
+	思路
+		* 原表
+		* 针对不同的业务创建不同的子表
+			* 数据存储格式orcfile/parquet
+			* 数据压缩  snappy
+			* map output 数据压缩 snappy
+			* 外部表
+			* 分区表（演示）
+
+查看hive函数，很有用的
+
+show functions;
+
+desc function extend substring;
