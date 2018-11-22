@@ -43,4 +43,11 @@
 
 注意：Hue依赖与Python，我们需要装上python
 
+启动：
+
+![](https://i.imgur.com/Mux3Ykj.png)
+
+## 集成HDFS
+
+
 
