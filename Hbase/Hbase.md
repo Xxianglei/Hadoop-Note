@@ -82,6 +82,9 @@ Hbase安装部署[指导](http://hbase.apache.org/book.html#quickstart)
 
 * 启动Hbase（提前启动Hadoop）
 
+
+hbase-deamon.sh start master
+
 ![](https://i.imgur.com/hC39Y72.png)
 
 	* zookeeper
@@ -94,6 +97,8 @@ Hbase安装部署[指导](http://hbase.apache.org/book.html#quickstart)
 ![](https://i.imgur.com/lZ4pvpw.png)
 
 各个目录的含义（官方文档）：
+
+* WAL意为Write ahead log用来做灾难恢复
 
 * 有必要的话就换hadoop的jar
 
@@ -112,6 +117,9 @@ Hbase Shell使用
 * 插数据 put 'user','1001','info:name','xianglei' （表名，rowkey，列蔟:列名，值）
 * 查看数据（三种方式） 
 	* 依据rowkey查询，最快的
+
+* 从memstore写到storefile flush 'user'
+* 手动compact compact 'user'
 
 		get
 ![](https://i.imgur.com/JuNoytH.png)
@@ -150,4 +158,323 @@ HBase数据写入流程
 		* 0) wal(预写日志) -> hdfs
 		* 1) memstore（溢写）
 		* 2) storefile -> hdfs
+
+Hbase Region理解
+
+	Region
+		rowkey
+		startrowkey[  - stoprowkey )
+	0011
+	..			Region-00
+	1001
+	..			Region-01  1009
+	1011
+	..			Region-02
+	1021
+	..			Region-03
+	1031
+				Region-04
+	
+	1041
+	
+	
+	>>>>>
+	默认的情况下，创建一个表时，会给一个表创建一个Region
+	如下：
+
+	startkey
+		null
+					1200001
+	endkey
+		null
+	当插入数据达到一个阀值，增加一个新的region。
+
+
+Hbase 架构细节
+
+![](https://ss2.bdstatic.com/70cFvnSh_Q1YnxGkpoWK1HF6hhy/it/u=3299396373,2098068075&fm=26&gp=0.jpg)
+
+客户端读取数据首先连接ZK，他需要去ZK找到这个表（region）所在的位置
+这里Zk存储了下图内容：然后去meta表扫描信息，比如找到user的rowkey然后找到他对应的region，得到管理他的regionserver。Master连接ZK是需要知道哪些RS是活着的。有几个列蔟就有几个Store，Store里面有一个memstore和很多个storeFile。
+
+Hlog存在的意义是，当集群突然挂掉memstore数据丢失后，当重启机器时Hlog重新读取文件系统的数据，并且恢复回来。
+
+数据上传->Hlog->memstore->storefile
+数据读取:先到memstore读（没有溢写到）再到storefile最后合并。
+
+![](https://i.imgur.com/6llPzyg.png)
+
+RS->一个RS对应一个目录
+
+![](https://i.imgur.com/YV2ZlqZ.png)
+
+* meta-region-server
+
+
+	存储meta表对应的region被哪个regionserver管理的信息
+![](https://i.imgur.com/1pkIJ9Y.png)
+
+
+	HBase新版本中，有了类似于RDBMS中DataBase的概率
+	命令空间
+		用户自定义的表，默认情况下命名空间
+			default
+		系统自带的元数据表的命名空间
+			hbase
+![](https://i.imgur.com/eWaLM5z.png)
+
+user-table拥有多个
+
+	regions
+
+hbase:meta
+
+					RegionServer    RegionServer
+
+client -> zookeepr -> hbase:meta -> user-table -> put/get/scan
+
+	get /hbase/meta-region-server
+
+Hbase数据存储
+
+* 所有数据存储在Hdfs上
+	* Hfile
+	* Hlog 
+
+
+![](https://i.imgur.com/G4RGRoI.png)
+![](https://i.imgur.com/H8SSmx0.png)
+
+Hbase Java API
+
+* jar依赖 server client
+* 配置文件导入 hdfs-seite.xml core-site.xml hbase-site.xml
+
+
+实例代码:
+
+	package com.beifeng.senior.hadoop.hbase;
+	
+	import org.apache.hadoop.conf.Configuration;
+	import org.apache.hadoop.hbase.Cell;
+	import org.apache.hadoop.hbase.CellUtil;
+	import org.apache.hadoop.hbase.HBaseConfiguration;
+	import org.apache.hadoop.hbase.client.Delete;
+	import org.apache.hadoop.hbase.client.Get;
+	import org.apache.hadoop.hbase.client.HTable;
+	import org.apache.hadoop.hbase.client.Put;
+	import org.apache.hadoop.hbase.client.Result;
+	import org.apache.hadoop.hbase.client.ResultScanner;
+	import org.apache.hadoop.hbase.client.Scan;
+	import org.apache.hadoop.hbase.util.Bytes;
+	import org.apache.hadoop.io.IOUtils;
+	
+	/**
+	 * CRUD Operations
+	 * 
+	 * @author xianglei
+	 *
+	 */
+	public class HBaseOperation {
+
+	public static HTable getHTableByTableName(String tableName) throws Exception {
+		// 读取默认配置文件信息
+		Configuration configuration = HBaseConfiguration.create();
+
+		//获取表的实例 
+		HTable table = new HTable(configuration, tableName);
+
+		return table;
+
+	}
+
+	public void getData() throws Exception {
+		String tableName = "user"; // 默认省略->命名框架+名称：default.user / hbase:meta
+
+		HTable table = getHTableByTableName(tableName);
+
+		// 获取一个有着Rowkey的Get 对应shell -->get 'user','10002','info:name'
+		Get get = new Get(Bytes.toBytes("10002")); 
+
+		
+		// get 查询  指定（ 列蔟 列名）
+		get.addColumn(//
+				Bytes.toBytes("info"), //
+				Bytes.toBytes("name"));
+		get.addColumn(//
+				Bytes.toBytes("info"), //
+				Bytes.toBytes("age"));
+
+		// 获取数据
+		Result result = table.get(get);
+
+		// Key : rowkey + cf + c + version
+		// Value: value
+		// 打印 列蔟：列名->值
+		for (Cell cell : result.rawCells()) {
+			System.out.println(//
+			Bytes.toString(CellUtil.cloneFamily(cell)) + ":" //
+			+ Bytes.toString(CellUtil.cloneQualifier(cell)) + " ->" //
+			+ Bytes.toString(CellUtil.cloneValue(cell)));
+		}
+
+		// 关闭资源
+		table.close();
+
+	}
+
+	/**
+	 * 建议 把tablename 和 columnfamily 定义为 常量 , 写到一个常量工具类里面 HBaseTableContent
+	 * 
+	 * 对于插入的列名和值建议使用 Map<String,Obejct> 使用for进行add
+	 * 
+	 * @throws Exception
+	 */
+	public void putData() throws Exception {
+		String tableName = "user"; 
+
+		HTable table = getHTableByTableName(tableName);
+
+		Put put = new Put(Bytes.toBytes("10004"));
+
+		// put 'user','10004','info:name','zhaoliu'
+		put.add(//
+				Bytes.toBytes("info"), //
+				Bytes.toBytes("name"), //
+				Bytes.toBytes("zhaoliu")//
+		);
+
+		put.add(//
+				Bytes.toBytes("info"), //
+				Bytes.toBytes("age"), //
+				Bytes.toBytes(25)//
+		);
+		put.add(//
+				Bytes.toBytes("info"), //
+				Bytes.toBytes("address"), //
+				Bytes.toBytes("shanghai")//
+		);
+		//放入数据
+		table.put(put);
+
+		table.close();
+	}
+
+	public void delete() throws Exception {
+		String tableName = "user"; // default.user / hbase:meta
+
+		HTable table = getHTableByTableName(tableName);
+
+		Delete delete = new Delete(Bytes.toBytes("10004"));
+		/* 删除info列蔟下的address列的所有数据deleteColumn删最新的deleteColumns删除所有的
+		 * delete.deleteColumn(Bytes.toBytes("info"),//
+		 * Bytes.toBytes("address"));
+		 */
+		
+		// rowkey为10004行info列蔟所有数据
+		delete.deleteFamily(Bytes.toBytes("info"));
+
+		table.delete(delete);
+
+		table.close();
+	}
+
+	public static void main(String[] args) throws Exception {
+		String tableName = "user"; 
+
+		HTable table = null;
+		ResultScanner resultScanner = null;
+
+		try {
+			table = getHTableByTableName(tableName);
+
+			Scan scan = new Scan();
+			
+			// Range 范围扫描 包头不包尾
+			scan.setStartRow(Bytes.toBytes("10001"));
+			scan.setStopRow(Bytes.toBytes("10003")) ;
+			// 或者这样写
+			//Scan scan2 = new Scan(Bytes.toBytes("10001"),Bytes.toBytes("10003"));
+			
+			// PrefixFilter
+			// PageFilter
+			//设置过滤器 会影响查询速度
+			//scan.setFilter(filter) ;
+			
+			//数据读出后缓存到blockcache下一次读就直接从缓存拿
+			//每一次获取多少列
+			//scan.setCacheBlocks(cacheBlocks);
+			//scan.setCaching(caching);
+			
+			// 查询哪些列哪些列蔟
+			//scan.addColumn(family, qualifier)
+			//scan.addFamily(family)
+
+			resultScanner = table.getScanner(scan);
+
+			for (Result result : resultScanner) {
+				// result里面存的是cell
+				System.out.println(Bytes.toString(result.getRow()));
+				//System.out.println(result);
+				for (Cell cell : result.rawCells()) {
+					System.out.println(//
+					Bytes.toString(CellUtil.cloneFamily(cell)) + ":" //
+					+ Bytes.toString(CellUtil.cloneQualifier(cell)) + " ->" //
+					+ Bytes.toString(CellUtil.cloneValue(cell)));
+				}
+				System.out.println("---------------------------------------");
+			}
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+
+			IOUtils.closeStream(resultScanner);
+			IOUtils.closeStream(table);
+		}
+
+	}
+
+	}
+
+Hbase架构剖析
+
+![](https://ss2.bdstatic.com/70cFvnSh_Q1YnxGkpoWK1HF6hhy/it/u=3299396373,2098068075&fm=26&gp=0.jpg)
+
+Client
+
+* 集群访问入口
+* 使用RPC机制与HM和HR进行通信
+* 与HM进行通信进行管理类操作
+* 与HR进行数据读写操作
+* 维护cache加快对Hbase的访问
+
+
+Zookeeper
+
+* 保证集群只有一个HM，Hbase没有单节点故障的概念，Hbase可以有多个HM但是只有一个去管理
+* 存储所有HR的寻址入口 meta
+* 实时监控HS的上下线信息，并且通知HM
+* 存储Hbase的schema的table元数据
+
+
+HMaster
+
+* Hbase没有单节点故障的概念，Hbase可以有多个HM但是只有一个去管理
+* 管理用户对表的操作
+* 管理HR的负载均衡，调整Region分布
+* Region Split后，负责新的Region的分布
+* HS失效后，负责失效的HS上的Region的迁移工作
+
+
+HRegion Server
+
+* 维护region处理IO请求
+* 切分大Region
+* 客户端访问数据不需要HM参与，寻址访问ZK和HS，数据读写访问HS，HM仅仅维护table和Region的元数据。
+
+![](http://i.imgur.com/5tqPWmW.jpg)
+
+Hbase集成MapReduce
+
 
