@@ -648,4 +648,74 @@ public class User2BasicMapReduce extends Configured implements Tool {
 	}
 
 	}
+
+	export HBASE_HOME=/opt/modules/hbase-0.98.6-hadoop2
+	export HADOOP_HOME=/opt/modules/hadoop-2.5.0
+	HADOOP_CLASSPATH=`${HBASE_HOME}/bin/hbase mapredcp` $HADOOP_HOME/bin/yarn jar $HADOOP_HOME/jars/hbase-mr-user2basic.jar
+
 Hbase 数据迁移
+
+>Hbase数据来至Logs或者RDMS等。数据迁移的方式有
+
+
+* Put API
+* bilk load tool
+* MapReduce job
+
+样本数据
+	
+	10001	zhangsan35	male	beijing	0109876543
+	10002	lisi	32	male	shanghia	0109876563
+	10003	zhaoliu	35	female	hangzhou	01098346543
+	10004	qianqi	35	male	shenzhen	01098732543
+
+1. importTSV
+	
+		export HBASE_HOME=/opt/modules/hbase-0.98.6-hadoop2
+
+		export HADOOP_HOME=/opt/modules/hadoop-2.5.0
+
+		HADOOP_CLASSPATH=`${HBASE_HOME}/bin/hbase mapredcp`:${HBASE_HOME}/conf ${HADOOP_HOME}/bin/yarn jar \
+		${HBASE_HOME}/lib/hbase-server-0.98.6-hadoop2.jar importtsv \
+		-Dimporttsv.columns=HBASE_ROW_KEY,\
+		info:name,info:age,info:sex,info:address,info:phone \
+		student \
+		hdfs://masterm:8020/user/hbase/importtsv
+
+2. bulk load
+
+>
+
+
+* 消除了对Hbase集群的插入压力
+* 提高了Job的运行速度，降低了Job的执行时间
+
+		importtsv默认支持设置bulk load方式写入数据
+
+		export HBASE_HOME=/opt/modules/hbase-0.98.6-hadoop2
+	
+		export HADOOP_HOME=/opt/modules/hadoop-2.5.0
+	
+		HADOOP_CLASSPATH=`${HBASE_HOME}/bin/hbase mapredcp`:${HBASE_HOME}/conf \
+		        ${HADOOP_HOME}/bin/yarn jar \
+		${HBASE_HOME}/lib/hbase-server-0.98.6-hadoop2.jar importtsv \
+		-Dimporttsv.columns=HBASE_ROW_KEY,\
+		info:name,info:age,info:sex,info:address,info:phone \
+		-Dimporttsv.bulk.output=hdfs://master:8020/user/hbase/hfileoutput \
+		student2 \
+		hdfs://master:8020/user/hbase/importtsv
+		
+		========================================================	==============
+		
+		export HBASE_HOME=/opt/modules/hbase-0.98.6-hadoop2
+	
+		export HADOOP_HOME=/opt/modules/hadoop-2.5.0
+	
+		HADOOP_CLASSPATH=`${HBASE_HOME}/bin/hbase mapredcp`:${HBASE_HOME}/conf \
+		${HADOOP_HOME}/bin/yarn jar \
+		${HBASE_HOME}/lib/hbase-server-0.98.6-hadoop2.jar \
+		completebulkload \
+		hdfs://hadoop-senior.ibeifeng.com:8020/user/beifeng/hbase/hfileoutput \
+		student2
+
+是mv过去的不是拷贝的！
