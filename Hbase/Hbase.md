@@ -476,5 +476,176 @@ HRegion Server
 ![](http://i.imgur.com/5tqPWmW.jpg)
 
 Hbase集成MapReduce
+	
+	/opt/modules/hbase-0.98.6-hadoop2/lib/hbase-common-0.98.6-hadoop2.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/protobuf-java-2.5.0.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/hbase-client-0.98.6-hadoop2.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/hbase-hadoop-compat-0.98.6-hadoop2.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/hbase-server-0.98.6-hadoop2.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/hbase-protocol-0.98.6-hadoop2.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/high-scale-lib-1.1.1.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/zookeeper-3.4.5.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/guava-12.0.1.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/htrace-core-2.04.jar:/opt/modules/hbase-0.98.6-hadoop2/lib/netty-3.6.6.Final.jar
 
+继承所需jar包如上
 
+	export HBASE_HOME=/opt/modules/hbase-0.98.6-hadoop2
+	export HADOOP_HOME=/opt/modules/hadoop-2.5.0
+	HADOOP_CLASSPATH=`${HBASE_HOME}/bin/hbase mapredcp` $HADOOP_HOME/bin/yarn jar $HBASE_HOME/lib/hbase-server-0.98.6-hadoop2.jar
+	此jar下面自带的
+	  CellCounter: Count cells in HBase table
+	  completebulkload: Complete a bulk data load.
+	  copytable: Export a table from local cluster to peer cluster
+	  export: Write table data to HDFS.
+	  import: Import data written by Export.
+	  importtsv: Import data in TSV format.
+	  rowcounter: Count rows in HBase table
+	  verifyrep: Compare the data from tables in two different clusters. WARNING: It doesn't work for incrementColumnValues'd cells since the timestamp is changed after being appended to the log.
+	
+	TSV
+		tab
+		>> student.tsv
+		1001	zhangsan	26	shanghai
+	CSV
+		逗号
+		>> student.csv
+		1001,zhangsan,26,shanghai
+	
+	completebulkload     ★ ★ ★ ★ ★ ★ 直接变成hfile
+		file  csv
+		  |
+		hfile
+		  |
+		load
+
+代码实例
+
+package com.beifeng.senior.hadoop.hbase;
+
+import java.io.IOException;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.client.Mutation;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
+import org.apache.hadoop.hbase.mapreduce.TableMapper;
+import org.apache.hadoop.hbase.mapreduce.TableReducer;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+
+public class User2BasicMapReduce extends Configured implements Tool {
+	
+	// Mapper Class
+	public static class ReadUserMapper extends TableMapper<Text, Put> {
+
+		private Text mapOutputKey = new Text();
+
+		@Override
+		public void map(ImmutableBytesWritable key, Result value,
+				Mapper<ImmutableBytesWritable, Result, Text, Put>.Context context)
+						throws IOException, InterruptedException {
+			// get rowkey
+			String rowkey = Bytes.toString(key.get());
+
+			// set map的输出key
+			mapOutputKey.set(rowkey);
+
+			// --------------------------------------------------------
+			Put put = new Put(key.get());
+
+			// iterator
+			for (Cell cell : value.rawCells()) {
+				// add family : info
+				if ("info".equals(Bytes.toString(CellUtil.cloneFamily(cell)))) {
+					// add column: name
+					if ("name".equals(Bytes.toString(CellUtil.cloneQualifier(cell)))) {
+						put.add(cell);
+					}
+					// add column : age
+					if ("age".equals(Bytes.toString(CellUtil.cloneQualifier(cell)))) {
+						put.add(cell);
+					}
+				}
+			}
+
+			// context write
+			context.write(mapOutputKey, put);
+		}
+
+	}
+
+	// Reducer Class
+	public static class WriteBasicReducer extends TableReducer<Text, Put, //
+	ImmutableBytesWritable> {
+
+		@Override
+		public void reduce(Text key, Iterable<Put> values,
+				Reducer<Text, Put, ImmutableBytesWritable, Mutation>.Context context)
+						throws IOException, InterruptedException {
+			for(Put put: values){
+			// 输出已经定义好了
+				context.write(null, put);
+			}
+		}
+
+	}
+
+	// Driver
+	public int run(String[] args) throws Exception {
+		
+		// create job
+		Job job = Job.getInstance(this.getConf(), this.getClass().getSimpleName());
+		
+		// set run job class
+		job.setJarByClass(this.getClass());
+		
+		// set job
+		Scan scan = new Scan();
+		scan.setCaching(500);        // 1 is the default in Scan, which will be bad for MapReduce jobs
+		scan.setCacheBlocks(false);  // don't set to true for MR jobs
+		// set other scan attrs
+
+		// set input and set mapper
+		TableMapReduceUtil.initTableMapperJob(
+		  "user",        // input table
+		  scan,               // Scan instance to control CF and attribute selection
+		  ReadUserMapper.class,     // mapper class
+		  Text.class,         // mapper output key
+		  Put.class,  // mapper output value
+		  job //
+		 );
+		
+		// set reducer and output
+		TableMapReduceUtil.initTableReducerJob(
+		  "basic",        // output table
+		  WriteBasicReducer.class,    // reducer class
+		  job//
+		 );
+		
+		job.setNumReduceTasks(1);   // at least one, adjust as required
+		
+		// submit job
+		boolean isSuccess = job.waitForCompletion(true) ;
+		
+		
+		return isSuccess ? 0 : 1;
+	}
+	
+	
+	public static void main(String[] args) throws Exception {
+		// get configuration
+		Configuration configuration = HBaseConfiguration.create();
+		
+		// submit job
+		int status = ToolRunner.run(configuration,new User2BasicMapReduce(),args) ;
+		
+		// exit program
+		System.exit(status);
+	}
+
+	}
+Hbase 数据迁移
