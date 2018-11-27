@@ -139,5 +139,22 @@ Web端口 http://192.168.1.205:4040 开多个的时候从4040端口暂用 端口
 
 ## Spark部署
 
->Spark Standalone 模式指的是Spark本身集群管理
+>Spark Standalone 安装部署模式指的是Spark本身自带的集群管理。
+
+它也是分布式的
+
+主节点 Master
+从节点 Work Nodes
+
+![](https://i.imgur.com/DdF7NeG.png)
+
+需要安装的内容
+
+1）JAVA
+
+2）SCALA
+
+3）HDFS
+
+4）SPARK
 
