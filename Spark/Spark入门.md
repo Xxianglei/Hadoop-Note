@@ -147,7 +147,7 @@ Web端口 http://192.168.1.205:4040 开多个的时候从4040端口暂用 端口
 从节点 Work Nodes
 
 ![](https://i.imgur.com/DdF7NeG.png)
-
+![](https://i.imgur.com/SkPTZA0.png)
 需要安装的内容
 
 1）JAVA
@@ -158,3 +158,66 @@ Web端口 http://192.168.1.205:4040 开多个的时候从4040端口暂用 端口
 
 4）SPARK
 
+
+* 修改slaves 
+
+
+![](https://i.imgur.com/g4a5Pd9.png)
+
+* 重命名日志文件
+
+	mv log4j.properties.template log4j.properties
+
+* 修改环境配置 SPARK_WORKER_DIR=
+
+	mv spark-env.sh.template spark-env.sh
+
+![](https://i.imgur.com/zmThxbJ.png)
+
+![](https://i.imgur.com/FEPa6gv.png)
+
+* 修改配置 
+
+
+![](https://i.imgur.com/HwWwPFg.png)
+
+![](https://i.imgur.com/c3fmAZe.png)
+
+可以手动指定：spark-shell --master spark://master:7077
+
+* 启动 start-master.sh  start-slaves.sh 或者start-all.sh
+
+![](https://i.imgur.com/Nb1JeU2.png)
+
+* 测试 
+
+	sc.textFile("/user/data/page_views.data")
+
+	res2.collect
+
+* WorkCount 测试
+
+	val linesRdd = sc.textFile("hdfs://master:8020/user/beifeng/mapreduce/wordcount/input/wc.input")
+	
+	val wordsRdd = linesRdd.flatMap(line => line.split(" "))
+	
+	val keyvalRdds = wordsRdd.map(word => (word,1))
+	
+	val countRdd = keyvalRdds.reduceByKey((a,b) => (a + b))
+	
+	hdfs-file -> linesRdd  -> wordsRdd -> keyvalRdds -> countRdd -> arr
+
+
+简写
+	
+	sc.textFile("hdfs://master:8020/user/beifeng/mapreduce/wordcount/input/wc.input").flatMap(_.split(" ")).map((_,1)).reduceByKey(_ + _)
+
+hdfs -> rdd  -> wordRdd  -> kvRdd  -> wordCountRdd -> hdfs
+
+RDD lineage 生命线 ，保存如何转换得来的
+
+## Spark spark-submit
+
+![](https://i.imgur.com/2So4iJk.png)
+
+![](https://i.imgur.com/GKYFRQx.png)
